@@ -12,14 +12,20 @@ async function hehe() {
   console.log(result);
 }
 
+const model = require('./model/model')
+const bookRoute = require('./routes/bookRoute')
+const categoryRoute = require('./routes/categoryRoute')
+const orderRoute = require('./routes/orderRoute')
+const userRoute = require('./routes/userRoute')
 require('dotenv/config');
 const PORT = 5000
-
-const model = require('./model/model')
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cors());
 
+app.use('/book', bookRoute);
+app.use('/category', categoryRoute);
+app.use('/order', orderRoute)
 
 app.get('/', (req, res) => {
   res.send('Hello world.');
@@ -40,64 +46,26 @@ app.post('/login', async (req, res) => {
 
 })
 
-app.post('/category/add', async (req, res) => {
+app.delete('/category/delete/:id', async (req, res) => {
   try {
-    const newCategory = new model.Category(req.body);
-    const savedCategory = await newCategory.save();
-    res.status(200).json(savedCategory);
+    let msg = "";
+    await model.Book.updateMany({ category: req.params.id }, { $set: { category: null } });
+    await model.Category.deleteOne({ _id: req.params.id });
+    res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
   } catch (err) {
     res.status(500).json({ success: false, msg: err.message });
   }
 })
 
-app.post('/book/add', async (req, res) => {
+app.delete('/book/delete/:id', async (req, res) => {
   try {
-    let msg;
-
-    if (req.body.category_Name) {
-      const category = await model.Category.findOne({ name: req.body.category_Name });
-      if (!(await category)) {
-        msg = "Thể loại này không tồn tại.!\n"
-      }
-      else {
-        req.body.category = category._id;
-        const newBook = new model.Book(req.body);
-        const savedBook = await newBook.save();
-        await category.updateOne({ $push: { listOfBook: savedBook._id } });
-        msg = "Add success!!!"
-      }
-    }
-    res.send(msg);
+    let msg = "";
+    const bookToDelete = await model.Book.find({ _id: req.params.id });
+    await model.Category.findByIdAndUpdate(bookToDelete.category, { $pull: { listOfBook: bookToDelete._id } });
+    await model.Book.deleteOne({ _id: req.params.id });
+    res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
   } catch (err) {
-    res.status(500).json(err);
-  }
-})
-
-app.post('/order/add', async (req, res) => {
-
-  try {
-    // Tính tổng giá trị đơn hàng
-    var total = 0;
-    for (i in req.body.listOfBook) {
-      const price = (await model.Book.findById(req.body.listOfBook[i].book)).price;
-      console.log(price)
-      total += req.body.listOfBook[i].quantity * price;
-    }
-    console.log(total);
-    //Tạo đối tượng đơn hàng
-    const order = new model.Order({
-      listOfBook: req.body.listOfBook,
-      totalPrice: total
-    });
-
-    // Lưu đơn hàng vào database
-    await order.save();
-
-    // Trả về kết quả thành công
-    res.status(201).json(order);
-  } catch (error) {
-    // Trả về thông báo lỗi nếu có lỗi xảy ra
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, msg: err.message });
   }
 })
 
@@ -119,7 +87,7 @@ app.get('/dashboard', async (req, res) => {
   });
 
   const listOfBookOutOfStock = await model.Book.find({
-    stock:{
+    stock: {
       $lte: 5
     }
   }).limit(5);
