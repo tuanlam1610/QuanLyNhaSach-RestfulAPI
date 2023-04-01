@@ -30,17 +30,18 @@ const bookController = {
             const nameToSearch = req.query.name || "";
             const minPrice = req.query.minPrice || 0;
             const maxPrice = req.query.maxPrice || 100000000;
-            const listOfBook = await model.Book.find({ category: req.params.id })
+            console.log(page, itemPerPage, nameToSearch, minPrice, maxPrice);
+            const listOfBook = await model.Book.find()
                 .where({
                     name: { $regex: nameToSearch }
-                },{
+                }).where({
                     price: {
                         $lte: maxPrice,
                         $gte: minPrice
                     }
                 })
                 .sort({ name: 1 })
-                .skip((req.query.page - 1) * req.query.itemPerPage)
+                .skip((page - 1) * itemPerPage)
                 .limit(itemPerPage);
             res.status(200).json(listOfBook);
         } catch (err) {
