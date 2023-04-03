@@ -4,7 +4,9 @@ const router = require('express').Router();
 
 router.post('/add', orderController.addOrder);
 
-router.get('/search', orderController.searchOrder)
+router.get('/search', orderController.searchOrder);
+
+router.get('/report', orderController.incomeReport)
 
 // router.delete('/delete/:id', orderController);
 

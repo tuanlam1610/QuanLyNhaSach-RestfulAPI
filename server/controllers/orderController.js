@@ -21,7 +21,6 @@ const orderController = {
             console.log(total);
             //Tạo đối tượng đơn hàng
             const order = new model.Order({
-                date: Date(Date.now()),
                 listOfBook: req.body.listOfBook,
                 totalPrice: total
             });
@@ -40,11 +39,54 @@ const orderController = {
         try {
             const page = req.query.page || 1;
             const itemPerPage = req.query.itemPerPage || 10;
-            const minDate = req.query.minDate || "";
-            const maxDate = req.query.maxDate || Date(Date.now());
+            const minDate = req.query.minDate ? new Date(req.query.minDate) : null;
+            const maxDate = req.query.maxDate ? new Date(req.query.maxDate) : Date(Date.now());
+            console.log(minDate);
             console.log(maxDate);
-            const listOfOrder = await model.Order.find().sort({ date: 1 }).skip((req.query.page - 1) * req.query.itemPerPage).limit(itemPerPage);
+            const listOfOrder = await model.Order.find({
+                date: {
+                    $lte: maxDate,
+                    $gte: minDate
+                }
+            }).sort({ date: -1 }).skip((req.query.page - 1) * req.query.itemPerPage).limit(itemPerPage);
             res.status(200).json(listOfOrder);
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
+    },
+    incomeReport: async (req, res) => {
+        try {
+            const modeReport = req.query.mode;
+            const start = new Date(req.query.minDate);
+            const end = req.query.maxDate ? new Date(req.query.maxDate) : Date(Date.now());
+            console.log(start);
+            console.log(end);
+
+            const filter = {
+                date: { $gte: start, $lte: end }
+            };
+
+            let aggregateQuery = [
+                { $match: filter },
+                {
+                    $group: {
+                        _id: {
+                            date: { $dateToString: { format: "%Y-%m-%d", date: "$date" } }
+                        },
+                        totalIncome: { $sum: "$totalPrice" }
+                    }
+                }
+            ];
+
+            if (modeReport === "month") {
+                aggregateQuery[1].$group._id = { $dateToString: { format: "%Y-%m", date: "$date" } };
+            } else if (modeReport === "year") {
+                aggregateQuery[1].$group._id = { $dateToString: { format: "%Y", date: "$date" } };
+            }
+
+            const incomeReport = await model.Order.aggregate(aggregateQuery);
+
+            res.status(200).json(incomeReport);
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }

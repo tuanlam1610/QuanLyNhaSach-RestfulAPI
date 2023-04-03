@@ -19,6 +19,24 @@ const categoryController = {
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
+    },
+    deleteCategory: async (req, res) => {
+        try {
+            let msg = "";
+            await model.Book.updateMany({ category: req.params.id }, { $set: { category: null } });
+            await model.Category.deleteOne({ _id: req.params.id });
+            res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
+    },
+    updateCategory: async (req, res) => {
+        try {
+            const a = await model.Category.findByIdAndUpdate(req.params.id, { $set: { name: req.body.newName } });
+            res.status(200).json(a)
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
     }
 }
 

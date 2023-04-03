@@ -1,45 +1,45 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    username:{
+    username: {
         type: String,
         required: true,
         unique: true
     },
-    password:{
+    password: {
         type: String,
         required: true
     }
 })
 
 const bookSchema = new mongoose.Schema({
-    name:{
+    name: {
         type: String,
         required: true,
         unique: true
     },
-    author:{
+    author: {
         type: String,
         required: true
     },
-    publishedYear:{
+    publishedYear: {
         type: Number,
         min: 1600
     },
-    imagePath:{
+    imagePath: {
         type: String,
         required: true
     },
-    price:{
+    price: {
         type: Number,
         required: true
     },
-    stock:{
+    stock: {
         type: Number,
         required: true,
         min: 0
     },
-    category:{
+    category: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Category",
         required: true
@@ -47,39 +47,39 @@ const bookSchema = new mongoose.Schema({
 })
 
 const categorySchema = new mongoose.Schema({
-    name:{
+    name: {
         type: String,
         require: true,
         unique: true
     },
-    listOfBook:[{
+    listOfBook: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Book"
     }]
 })
 
 const orderSchema = new mongoose.Schema({
-    date:{
+    date: {
         type: Date,
         required: true,
         default: Date.now
     },
     listOfBook: [{
-        book:{
+        book: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Book",
             required: true
         },
-        quantity:{
+        quantity: {
             type: Number,
             min: 1,
             default: 1,
             required: true
         }
     }],
-    totalPrice:{
+    totalPrice: {
         type: Number,
-        required:true
+        required: true
     }
 })
 
@@ -88,4 +88,4 @@ let Book = mongoose.model("Book", bookSchema);
 let Category = mongoose.model("Category", categorySchema);
 let Order = mongoose.model("Order", orderSchema);
 
-module.exports = {User, Book, Category, Order}
+module.exports = { User, Book, Category, Order }

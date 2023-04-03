@@ -46,29 +46,6 @@ app.post('/login', async (req, res) => {
 
 })
 
-app.delete('/category/delete/:id', async (req, res) => {
-  try {
-    let msg = "";
-    await model.Book.updateMany({ category: req.params.id }, { $set: { category: null } });
-    await model.Category.deleteOne({ _id: req.params.id });
-    res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
-  } catch (err) {
-    res.status(500).json({ success: false, msg: err.message });
-  }
-})
-
-app.delete('/book/delete/:id', async (req, res) => {
-  try {
-    let msg = "";
-    const bookToDelete = await model.Book.find({ _id: req.params.id });
-    await model.Category.findByIdAndUpdate(bookToDelete.category, { $pull: { listOfBook: bookToDelete._id } });
-    await model.Book.deleteOne({ _id: req.params.id });
-    res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
-  } catch (err) {
-    res.status(500).json({ success: false, msg: err.message });
-  }
-})
-
 app.get('/dashboard', async (req, res) => {
   const numOfBooks = await model.Book.count()
   const numOfOrderPerWeek = await model.Order.find().where({ date: "2023-03-30T15:15:08.402Z" });
