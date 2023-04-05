@@ -1,5 +1,5 @@
 const model = require('../model/model')
-const { ObjectId } = require('mongoose')
+const mongoose = require('mongoose')
 
 const bookController = {
     addBook: async (req, res) => {
@@ -46,8 +46,8 @@ const bookController = {
         try {
             const bookToDelete = await model.Book.findById(req.params.id);
             await model.Category.findByIdAndUpdate(bookToDelete.category, { $pull: { listOfBook: bookToDelete._id } })
-            const updatedBook = await model.Book.findByIdAndDelete(req.params.id)
-            res.status(200).json(updatedBook)
+            await model.Book.findByIdAndDelete(req.params.id)
+            res.status(200).json("Xóa thành công.")
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
@@ -88,13 +88,13 @@ const bookController = {
             // console.log(bookSearch);
             const filter = {
                 date: { $gte: start, $lte: end },
-                //"$listOfBook.book": { $in: [req.params.id] }
+                "listOfBook.book": { $in: [new mongoose.Types.ObjectId(req.params.id)] }
             };
 
-            const orderSearch = await model.Order.find(filter);
-            console.log("Search")
-            console.log(orderSearch)
-            console.log(req.params.id)
+            // const orderSearch = await model.Order.find(filter);
+            // console.log("Search")
+            // console.log(orderSearch)
+            // console.log(req.params.id)
             // res.status(200).json(orderSearch)
             let aggregateQuery = [
                 {
@@ -105,7 +105,7 @@ const bookController = {
                 },
                 {
                     $match: {
-                        //"listOfBook.book": ObjectId(req.params.id)
+                        "listOfBook.book": new mongoose.Types.ObjectId(req.params.id)
                     }
                 },
                 {
@@ -120,9 +120,9 @@ const bookController = {
             ];
 
             if (modeReport === "month") {
-                aggregateQuery[1].$group._id = { $dateToString: { format: "%Y-%m", date: "$date" } };
+                aggregateQuery[3].$group._id.date = { $dateToString: { format: "%Y-%m", date: "$date" } };
             } else if (modeReport === "year") {
-                aggregateQuery[1].$group._id = { $dateToString: { format: "%Y", date: "$date" } };
+                aggregateQuery[3].$group._id.date = { $dateToString: { format: "%Y", date: "$date" } };
             }
 
             const incomeReport = await model.Order.aggregate(aggregateQuery);

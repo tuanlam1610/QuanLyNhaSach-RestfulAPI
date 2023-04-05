@@ -54,6 +54,32 @@ const orderController = {
             res.status(500).json({ success: false, msg: err.message });
         }
     },
+    getAnOrder: async (req, res) => {
+        try {
+            const orderSearch = await model.Order.findById(req.params.id).populate("listOfBook.book");
+            res.status(200).json(orderSearch);
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
+    },
+    deleteAnOrder: async (req, res) => {
+        try {
+            await model.Order.findByIdAndDelete(req.params.id);
+            res.status(200).json("Xóa đơn hàng thành công.")
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
+    },
+    updateAnOrder: async (req, res) => {
+        try {
+            const orderToUpdate = await model.Order.findById(req.params.id);
+            orderToUpdate.listOfBook = req.body.listOfBook;
+            orderToUpdate.save();
+            res.status(200).json(orderToUpdate)
+        } catch (err) {
+            res.status(500).json({ success: false, msg: err.message });
+        }
+    },
     incomeReport: async (req, res) => {
         try {
             const modeReport = req.query.mode;
