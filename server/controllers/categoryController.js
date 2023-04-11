@@ -4,6 +4,7 @@ const categoryController = {
     addCategory: async (req, res) => {
         try {
             const newCategory = new model.Category(req.body);
+            console.log(req.body)
             const savedCategory = await newCategory.save();
             res.status(200).json(savedCategory);
         } catch (err) {
