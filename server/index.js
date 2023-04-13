@@ -56,8 +56,6 @@ app.post('/uploadExcel', upload.single('file'), async (req, res) => {
   console.log(req.file); // Log information about the uploaded file
   const file = xlsx.readFile('./file.xlsx')
 
-  let data = []
-
   const sheets = file.SheetNames
 
   for (let i = 1; i < sheets.length; i++) {

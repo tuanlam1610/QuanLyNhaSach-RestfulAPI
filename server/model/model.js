@@ -46,6 +46,32 @@ const bookSchema = new mongoose.Schema({
     }
 })
 
+const stationerySchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    imagePath: {
+        type: String,
+        required: true
+    },
+    price: {
+        type: Number,
+        required: true
+    },
+    stock: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+        required: true
+    }
+})
+
 const categorySchema = new mongoose.Schema({
     name: {
         type: String,
@@ -64,19 +90,26 @@ const orderSchema = new mongoose.Schema({
         required: true,
         default: Date.now
     },
-    listOfBook: [{
-        book: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Book",
-            required: true
-        },
-        quantity: {
-            type: Number,
-            min: 1,
-            default: 1,
-            required: true
-        }
-    }],
+    listOfItems: {
+        type: [{
+            type: {
+                type: String,
+                enum: ["Book", "Stationery"],
+                required: true
+            },
+            product: {
+                type: mongoose.Schema.Types.ObjectId,
+                refPath: "listOfItems.type",
+                required: true
+            },
+            quantity: {
+                type: Number,
+                required: true,
+                min: 1
+            }
+        }],
+        required: true,
+    },
     totalPrice: {
         type: Number,
         required: true
@@ -85,7 +118,8 @@ const orderSchema = new mongoose.Schema({
 
 let User = mongoose.model("User", userSchema);
 let Book = mongoose.model("Book", bookSchema);
+let Stationery = mongoose.model("Stationery", stationerySchema)
 let Category = mongoose.model("Category", categorySchema);
 let Order = mongoose.model("Order", orderSchema);
 
-module.exports = { User, Book, Category, Order }
+module.exports = { User, Book, Stationery, Category, Order }

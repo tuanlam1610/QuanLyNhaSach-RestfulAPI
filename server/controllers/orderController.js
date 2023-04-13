@@ -5,23 +5,35 @@ const orderController = {
         try {
             // Tính tổng giá trị đơn hàng
             var total = 0;
-            for (i in req.body.listOfBook) {
-                const book = (await model.Book.findById(req.body.listOfBook[i].book));
-                if (book.stock < req.body.listOfBook[i].quantity) {
-                    res.status(400).json(`Sách ${book.name} không đủ số lượng yêu cầu của order!`);
+            for (i in req.body.listOfItems) {
+                var product;
+                if (req.body.listOfItems[i].type === "Book") {
+                    product = await model.Book.findById(req.body.listOfItems[i].product);
+                }
+                else {
+                    product = await model.Stationery.findById(req.body.listOfItems[i].product)
+                }
+                if (product.stock < req.body.listOfItems[i].quantity) {
+                    res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
                 }
 
-                total += req.body.listOfBook[i].quantity * book.price;
+                total += req.body.listOfItems[i].quantity * product.price;
+                console.log(product.price)
             }
 
-            for (i in req.body.listOfBook) {
-                await model.Book.updateOne({ _id: req.body.listOfBook[i].book }, { $inc: { stock: - req.body.listOfBook[i].quantity } });
+            for (i in req.body.listOfItems) {
+                if (req.body.listOfItems[i].type === "Book") {
+                    await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+                }
+                else {
+                    await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+                }
             }
 
             console.log(total);
             //Tạo đối tượng đơn hàng
             const order = new model.Order({
-                listOfBook: req.body.listOfBook,
+                listOfItems: req.body.listOfItems,
                 totalPrice: total
             });
 
@@ -56,7 +68,23 @@ const orderController = {
     },
     getAnOrder: async (req, res) => {
         try {
-            const orderSearch = await model.Order.findById(req.params.id).populate("listOfBook.book");
+            const orderSearch = await model.Order.findById(req.params.id).populate({
+                path: "listOfItems.product",
+                collection: (doc) => {
+                    if (doc.type === "Book") {
+                        return Book;
+                    } else if (doc.type === "Stationnery") {
+                        return Stationnery;
+                    } else {
+                        return null;
+                    }
+                },
+                populate:{
+                    path: "category",
+                    collection: "Category",
+                    select: "name"
+                }
+            });
             res.status(200).json(orderSearch);
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
