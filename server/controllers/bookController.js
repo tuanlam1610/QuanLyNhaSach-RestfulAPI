@@ -15,7 +15,11 @@ const bookController = {
                     req.body.category = category._id;
                     const newBook = new model.Book(req.body);
                     const savedBook = await newBook.save();
-                    await category.updateOne({ $push: { listOfBook: savedBook._id } });
+                    await category.updateOne({
+                        $push: {
+                            listOfItems: savedBook._id
+                        }
+                    });
                     msg = "Add success!!!"
                 }
             }
@@ -33,8 +37,16 @@ const bookController = {
         try {
             const bookToUpdate = await model.Book.findById(req.params.id);
             if (req.body.category) {
-                await model.Category.findByIdAndUpdate(bookToUpdate.category, { $pull: { listOfBook: bookToUpdate._id } })
-                await model.Category.findByIdAndUpdate(req.body.category, { $push: { listOfBook: bookToUpdate._id } })
+                await model.Category.findByIdAndUpdate(bookToUpdate.category, {
+                    $pull: {
+                        listOfItems: bookToUpdate._id
+                    }
+                })
+                await model.Category.findByIdAndUpdate(req.body.category, {
+                    $push: {
+                        listOfItems: bookToUpdate._id
+                    }
+                })
             }
             const updatedBook = await model.Book.findByIdAndUpdate(req.params.id, { $set: req.body })
             res.status(200).json(updatedBook)
@@ -45,7 +57,11 @@ const bookController = {
     deleteBook: async (req, res) => {
         try {
             const bookToDelete = await model.Book.findById(req.params.id);
-            await model.Category.findByIdAndUpdate(bookToDelete.category, { $pull: { listOfBook: bookToDelete._id } })
+            await model.Category.findByIdAndUpdate(bookToDelete.category, {
+                $pull: {
+                    listOfItems: bookToDelete._id
+                }
+            })
             await model.Book.findByIdAndDelete(req.params.id)
             res.status(200).json("Xóa thành công.")
         } catch (err) {
@@ -88,33 +104,28 @@ const bookController = {
             // console.log(bookSearch);
             const filter = {
                 date: { $gte: start, $lte: end },
-                "listOfBook.book": { $in: [new mongoose.Types.ObjectId(req.params.id)] }
+                "listOfItems.product": { $in: [new mongoose.Types.ObjectId(req.params.id)] }
             };
 
-            // const orderSearch = await model.Order.find(filter);
-            // console.log("Search")
-            // console.log(orderSearch)
-            // console.log(req.params.id)
-            // res.status(200).json(orderSearch)
             let aggregateQuery = [
                 {
                     $match: filter
                 },
                 {
-                    $unwind: "$listOfBook"
+                    $unwind: "$listOfItems"
                 },
                 {
                     $match: {
-                        "listOfBook.book": new mongoose.Types.ObjectId(req.params.id)
+                        "listOfItems.product": new mongoose.Types.ObjectId(req.params.id)
                     }
                 },
                 {
                     $group: {
                         _id: {
                             date: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
-                            book: "$listOfBook.book",
+                            book: "$listOfItems.product",
                         },
-                        totalQuantity: { $sum: "$listOfBook.quantity" }
+                        totalQuantity: { $sum: "$listOfItems.quantity" }
                     }
                 }
             ];

@@ -18,6 +18,7 @@ async function hehe() {
 
 const model = require('./model/model')
 const bookRoute = require('./routes/bookRoute')
+const stationeryRoute = require('./routes/stationeryRoute')
 const categoryRoute = require('./routes/categoryRoute')
 const orderRoute = require('./routes/orderRoute')
 const userRoute = require('./routes/userRoute')
@@ -30,6 +31,7 @@ app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cors());
 
 app.use('/book', bookRoute);
+app.use('/stationery', stationeryRoute)
 app.use('/category', categoryRoute);
 app.use('/order', orderRoute)
 
@@ -53,44 +55,55 @@ const upload = multer({ storage: storage });
 
 // API endpoint for uploading Excel file
 app.post('/uploadExcel', upload.single('file'), async (req, res) => {
-  console.log(req.file); // Log information about the uploaded file
-  const file = xlsx.readFile('./file.xlsx')
+  try {
+    const file = xlsx.readFile(req.file.path);
+    const sheets = file.SheetNames;
 
-  const sheets = file.SheetNames
-
-  for (let i = 1; i < sheets.length; i++) {
-    const temp = xlsx.utils.sheet_to_json(
-      file.Sheets[file.SheetNames[i]])
-    temp.forEach(async (res) => {
-      const newCategory = new model.Category(res);
-      await newCategory.save();
-    })
-  }
-
-  for (let i = 0; i < 1; i++) {
-    const temp = xlsx.utils.sheet_to_json(file.Sheets[file.SheetNames[i]])
-    temp.forEach(async (res) => {
-      try {
-        console.log(res);
-        if (res.categoryName) {
-            const category = await model.Category.findOne({ name: res.categoryName });
-            if (!(await category)) {
-                
-            }
-            else {
-                res.category = category._id;
-                const newBook = new model.Book(res);
-                const savedBook = await newBook.save();
-                await category.updateOne({ $push: { listOfBook: savedBook._id } });
-            }
+    // Save categories
+    for (let i = 1; i < sheets.length; i++) {
+      const temp = xlsx.utils.sheet_to_json(file.Sheets[file.SheetNames[i]]);
+      for (const category of temp) {
+        try {
+          const newCategory = new model.Category(category);
+          await newCategory.save();
+        } catch (err) {
+          console.error(err);
         }
-    } catch (err) {
-        res.status(500).json(err);
+      }
     }
-    })
-  }
 
-  res.status(200).json("Thêm thành công");
+    const temp = xlsx.utils.sheet_to_json(file.Sheets[file.SheetNames[0]]);
+    for (const row of temp) {
+      try {
+        console.log(row);
+        if (row.categoryName) {
+          const category = await model.Category.findOne({ name: row.categoryName });
+          if (category) {
+            row.category = category._id;
+            const newBook = new model.Book(row);
+            const savedBook = await newBook.save();
+            await category.updateOne({
+              $push: {
+                listOfItems: savedBook._id
+              }
+            });
+          } else {
+            console.error(`Category ${row.categoryName} not found`);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    res.status(200).json("Thêm thành công");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(err);
+  } finally {
+    // Remove the uploaded file from the server
+    fs.unlinkSync(req.file.path);
+  }
 });
 
 app.post('/user/add', async (req, res) => {

@@ -4,7 +4,7 @@ const router = require('express').Router();
 
 router.post('/add', categoryController.addCategory);
 
-router.get('/showBook/:id', categoryController.showBookByCategory)
+router.get('/showProduct/:id', categoryController.showProductByCategory)
 
 router.delete('/delete/:id', categoryController.deleteCategory);
 

@@ -79,7 +79,7 @@ const orderController = {
                         return null;
                     }
                 },
-                populate:{
+                populate: {
                     path: "category",
                     collection: "Category",
                     select: "name"
@@ -100,8 +100,57 @@ const orderController = {
     },
     updateAnOrder: async (req, res) => {
         try {
-            const orderToUpdate = await model.Order.findById(req.params.id);
-            orderToUpdate.listOfBook = req.body.listOfBook;
+            const orderToUpdate = await model.Order.findById(req.params.id).populate({
+                path: "listOfItems.product",
+                collection: (doc) => {
+                    if (doc.type === "Book") {
+                        return Book;
+                    } else if (doc.type === "Stationnery") {
+                        return Stationnery;
+                    } else {
+                        return null;
+                    }
+                }
+            });
+
+            if (!orderToUpdate) res.status(400).json("Không tìm thấy order");
+            for (let i = 0; i < orderToUpdate.listOfItems.length; i++) {
+                const originalItem = orderToUpdate.listOfItems[i];
+                const product = await originalItem.product.constructor.findById(originalItem.product);
+                product.stock += originalItem.quantity;
+                product.save();
+            }
+            var total = 0;
+            for (i in req.body.listOfItems) {
+                var product;
+                if (req.body.listOfItems[i].type === "Book") {
+                    product = await model.Book.findById(req.body.listOfItems[i].product);
+                }
+                else {
+                    product = await model.Stationery.findById(req.body.listOfItems[i].product)
+                }
+                if (product.stock < req.body.listOfItems[i].quantity) {
+                    res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
+                }
+
+                total += req.body.listOfItems[i].quantity * product.price;
+                console.log(product.price)
+            }
+
+            for (i in req.body.listOfItems) {
+                if (req.body.listOfItems[i].type === "Book") {
+                    await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+                }
+                else {
+                    await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+                }
+            }
+
+            console.log(total);
+            //Tạo đối tượng đơn hàng
+            orderToUpdate.listOfItems = req.body.listOfItems
+            orderToUpdate.totalPrice = total
+
             orderToUpdate.save();
             res.status(200).json(orderToUpdate)
         } catch (err) {
@@ -140,7 +189,7 @@ const orderController = {
 
             const incomeReport = await model.Order.aggregate(aggregateQuery);
 
-            res.status(200).json(incomeReport);
+            res.status(200).json(incomeReport); 
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }

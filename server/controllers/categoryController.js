@@ -11,12 +11,24 @@ const categoryController = {
             res.status(500).json({ success: false, msg: err.message });
         }
     },
-    showBookByCategory: async (req, res) => {
+    showProductByCategory: async (req, res) => {
         try {
             const page = req.query.page || 1;
             const itemPerPage = req.query.itemPerPage || 10;
-            const listOfBook = await model.Book.find({ category: req.params.id }).sort({ name: 1 }).skip((req.query.page - 1) * req.query.itemPerPage).limit(itemPerPage);
-            res.status(200).json(listOfBook);
+            const categoryID = await model.Category.findById(req.params.id);
+            var listOfItems;
+            if (categoryID.listOfItems.length > 0) {
+                if (categoryID.type === "Book") {
+                    listOfItems = await model.Book.find({ category: req.params.id }).sort({ name: 1 }).skip((page - 1) * itemPerPage).limit(itemPerPage);
+                }
+                else{
+                    listOfItems = await model.Stationery.find({ category: req.params.id }).sort({ name: 1 }).skip((page - 1) * itemPerPage).limit(itemPerPage);
+                }
+            }
+            else{
+                res.status(200).json("Thể loại này không có sản phẩm nào!")
+            }
+            res.status(200).json(listOfItems);
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
@@ -25,6 +37,7 @@ const categoryController = {
         try {
             let msg = "";
             await model.Book.updateMany({ category: req.params.id }, { $set: { category: null } });
+            await model.Stationery.updateMany({ category: req.params.id }, { $set: { category: null } });
             await model.Category.deleteOne({ _id: req.params.id });
             res.status(200).json("Xóa thành công, vui lòng cập nhật lại thể loại của các loại sách.")
         } catch (err) {

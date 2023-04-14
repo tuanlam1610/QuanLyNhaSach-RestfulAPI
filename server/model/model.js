@@ -78,9 +78,14 @@ const categorySchema = new mongoose.Schema({
         require: true,
         unique: true
     },
-    listOfBook: [{
+    type: {
+        type: String,
+        enum: ["Book", "Stationery"],
+        required: true
+    },
+    listOfItems: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Book"
+        refPath: "listOfItems.type"
     }]
 })
 
