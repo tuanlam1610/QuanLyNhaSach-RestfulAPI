@@ -113,43 +113,44 @@ const orderController = {
                 }
             });
 
-            if (!orderToUpdate) res.status(400).json("Không tìm thấy order");
-            for (let i = 0; i < orderToUpdate.listOfItems.length; i++) {
-                const originalItem = orderToUpdate.listOfItems[i];
-                const product = await originalItem.product.constructor.findById(originalItem.product);
-                product.stock += originalItem.quantity;
-                product.save();
-            }
-            var total = 0;
-            for (i in req.body.listOfItems) {
-                var product;
-                if (req.body.listOfItems[i].type === "Book") {
-                    product = await model.Book.findById(req.body.listOfItems[i].product);
-                }
-                else {
-                    product = await model.Stationery.findById(req.body.listOfItems[i].product)
-                }
-                if (product.stock < req.body.listOfItems[i].quantity) {
-                    res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
-                }
+            // if (!orderToUpdate) res.status(400).json("Không tìm thấy order");
+            // for (let i = 0; i < orderToUpdate.listOfItems.length; i++) {
+            //     const originalItem = orderToUpdate.listOfItems[i];
+            //     const product = await originalItem.product.constructor.findById(originalItem.product);
+            //     product.stock += originalItem.quantity;
+            //     product.save();
+            // }
+            // var total = 0;
+            // for (i in req.body.listOfItems) {
+            //     var product;
+            //     if (req.body.listOfItems[i].type === "Book") {
+            //         product = await model.Book.findById(req.body.listOfItems[i].product);
+            //     }
+            //     else {
+            //         product = await model.Stationery.findById(req.body.listOfItems[i].product)
+            //     }
+            //     if (product.stock < req.body.listOfItems[i].quantity) {
+            //         res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
+            //     }
 
-                total += req.body.listOfItems[i].quantity * product.price;
-                console.log(product.price)
-            }
+            //     total += req.body.listOfItems[i].quantity * product.price;
+            //     console.log(product.price)
+            // }
 
-            for (i in req.body.listOfItems) {
-                if (req.body.listOfItems[i].type === "Book") {
-                    await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-                }
-                else {
-                    await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-                }
-            }
+            // for (i in req.body.listOfItems) {
+            //     if (req.body.listOfItems[i].type === "Book") {
+            //         await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+            //     }
+            //     else {
+            //         await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
+            //     }
+            // }
 
-            console.log(total);
-            //Tạo đối tượng đơn hàng
-            orderToUpdate.listOfItems = req.body.listOfItems
-            orderToUpdate.totalPrice = total
+            // console.log(total);
+            // //Tạo đối tượng đơn hàng
+            // orderToUpdate.listOfItems = req.body.listOfItems
+            // orderToUpdate.totalPrice = total
+            orderToUpdate.date = req.body.date
 
             orderToUpdate.save();
             res.status(200).json(orderToUpdate)

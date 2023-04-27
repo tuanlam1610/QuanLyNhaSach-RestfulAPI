@@ -104,7 +104,7 @@ const bookController = {
             // console.log(bookSearch);
             const filter = {
                 date: { $gte: start, $lte: end },
-                "listOfItems.product": { $in: [new mongoose.Types.ObjectId(req.params.id)] }
+                //"listOfItems.product": { $in: [new mongoose.Types.ObjectId(req.params.id)] }
             };
 
             let aggregateQuery = [
@@ -114,11 +114,11 @@ const bookController = {
                 {
                     $unwind: "$listOfItems"
                 },
-                {
-                    $match: {
-                        "listOfItems.product": new mongoose.Types.ObjectId(req.params.id)
-                    }
-                },
+                // {
+                //     $match: {
+                //         "listOfItems.product": new mongoose.Types.ObjectId(req.params.id)
+                //     }
+                // },
                 {
                     $group: {
                         _id: {
@@ -127,13 +127,17 @@ const bookController = {
                         },
                         totalQuantity: { $sum: "$listOfItems.quantity" }
                     }
+                },{
+                    $sort: {
+                        totalQuantity: -1
+                    }
                 }
             ];
 
             if (modeReport === "month") {
-                aggregateQuery[3].$group._id.date = { $dateToString: { format: "%Y-%m", date: "$date" } };
+                aggregateQuery[2].$group._id.date = { $dateToString: { format: "%Y-%m", date: "$date" } };
             } else if (modeReport === "year") {
-                aggregateQuery[3].$group._id.date = { $dateToString: { format: "%Y", date: "$date" } };
+                aggregateQuery[2].$group._id.date = { $dateToString: { format: "%Y", date: "$date" } };
             }
 
             const incomeReport = await model.Order.aggregate(aggregateQuery);
