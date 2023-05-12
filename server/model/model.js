@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+const imgSchema = new mongoose.Schema({
+    data: Buffer,
+})
+
 const userSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -27,34 +31,8 @@ const bookSchema = new mongoose.Schema({
         min: 1600
     },
     imagePath: {
-        type: String,
-        required: true
-    },
-    price: {
-        type: Number,
-        required: true
-    },
-    stock: {
-        type: Number,
-        required: true,
-        min: 0
-    },
-    category: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Category",
-        required: true
-    }
-})
-
-const stationerySchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    imagePath: {
-        type: String,
-        required: true
+        ref: "Img"
     },
     price: {
         type: Number,
@@ -78,14 +56,9 @@ const categorySchema = new mongoose.Schema({
         require: true,
         unique: true
     },
-    type: {
-        type: String,
-        enum: ["Book", "Stationery"],
-        required: true
-    },
-    listOfItems: [{
+    listOfBook: [{
         type: mongoose.Schema.Types.ObjectId,
-        refPath: "listOfItems.type"
+        ref: "Book"
     }]
 })
 
@@ -95,26 +68,19 @@ const orderSchema = new mongoose.Schema({
         required: true,
         default: Date.now
     },
-    listOfItems: {
-        type: [{
-            type: {
-                type: String,
-                enum: ["Book", "Stationery"],
-                required: true
-            },
-            product: {
-                type: mongoose.Schema.Types.ObjectId,
-                refPath: "listOfItems.type",
-                required: true
-            },
-            quantity: {
-                type: Number,
-                required: true,
-                min: 1
-            }
-        }],
-        required: true,
-    },
+    listOfBook: [{
+        book: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Book",
+            required: true
+        },
+        quantity: {
+            type: Number,
+            min: 1,
+            default: 1,
+            required: true
+        }
+    }],
     totalPrice: {
         type: Number,
         required: true
@@ -123,8 +89,8 @@ const orderSchema = new mongoose.Schema({
 
 let User = mongoose.model("User", userSchema);
 let Book = mongoose.model("Book", bookSchema);
-let Stationery = mongoose.model("Stationery", stationerySchema)
 let Category = mongoose.model("Category", categorySchema);
 let Order = mongoose.model("Order", orderSchema);
+let Img = mongoose.model("Img", imgSchema)
 
-module.exports = { User, Book, Stationery, Category, Order }
+module.exports = { User, Book, Category, Order, Img }

@@ -3,79 +3,52 @@ const app = express()
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
-const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx')
-
-async function hehe() {
-  const hashedPassword = await bcrypt.hash('myPassword', 10);
-  // Compare a password with a hash
-  const result = await bcrypt.compare('myPassword', hashedPassword);
-  console.log(result);
-}
-
 const model = require('./model/model')
 const bookRoute = require('./routes/bookRoute')
-const stationeryRoute = require('./routes/stationeryRoute')
 const categoryRoute = require('./routes/categoryRoute')
 const orderRoute = require('./routes/orderRoute')
 const userRoute = require('./routes/userRoute')
+const uploadMiddleware = require('./middleware/uploadFile');
 require('dotenv/config');
 const PORT = 5000
 
+app.use(express.json())
 app.use('/img', express.static("images"));
 
-app.use(bodyParser.json({ limit: "50mb" }));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }))
 app.use(cors());
 
 app.use('/book', bookRoute);
-app.use('/stationery', stationeryRoute)
 app.use('/category', categoryRoute);
-app.use('/order', orderRoute)
+app.use('/order', orderRoute);
+app.use('/user', userRoute);
 
 app.get('/', (req, res) => {
-  res.send('Hello world.');
+  res.send('Quản lý bán hàng Restful API.');
 })
 
-// Set up storage engine for multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, './'); // Directory to save the file
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + ext); // File name with timestamp
-  }
-});
-
-// Set up multer middleware
-const upload = multer({ storage: storage });
-
 // API endpoint for uploading Excel file
-app.post('/uploadExcel', upload.single('file'), async (req, res) => {
+app.post('/uploadExcel', uploadMiddleware, async (req, res) => {
   try {
     const file = xlsx.readFile(req.file.path);
-    const sheets = file.SheetNames;
-
     // Save categories
-    for (let i = 1; i < sheets.length; i++) {
-      const temp = xlsx.utils.sheet_to_json(file.Sheets[file.SheetNames[i]]);
-      for (const category of temp) {
-        try {
-          const newCategory = new model.Category(category);
-          await newCategory.save();
-        } catch (err) {
-          console.error(err);
-        }
+    const categorySheet = xlsx.utils.sheet_to_json(file.Sheets["Category"]);
+    for (const category of categorySheet) {
+      try {
+        const newCategory = new model.Category(category);
+        await newCategory.save();
+      } catch (err) {
+        console.error(err);
       }
     }
-
-    const temp = xlsx.utils.sheet_to_json(file.Sheets[file.SheetNames[0]]);
-    for (const row of temp) {
+    const bookSheet = xlsx.utils.sheet_to_json(file.Sheets["Book"]);
+    for (const row of bookSheet) {
       try {
-        console.log(row);
+        row.imagePath = null;
         if (row.categoryName) {
           const category = await model.Category.findOne({ name: row.categoryName });
           if (category) {
@@ -84,18 +57,18 @@ app.post('/uploadExcel', upload.single('file'), async (req, res) => {
             const savedBook = await newBook.save();
             await category.updateOne({
               $push: {
-                listOfItems: savedBook._id
+                listOfBook: savedBook._id
               }
             });
           } else {
             console.error(`Category ${row.categoryName} not found`);
           }
         }
-      } catch (err) {
+      }
+      catch (err) {
         console.error(err);
       }
     }
-
     res.status(200).json("Thêm thành công");
   } catch (err) {
     console.error(err);
@@ -106,93 +79,88 @@ app.post('/uploadExcel', upload.single('file'), async (req, res) => {
   }
 });
 
-app.post('/user/add', async (req, res) => {
+app.post('/uploadImg', uploadMiddleware, async (req, res, next) => {
   try {
-    // Check if a user with the same username already exists
-    const existingUser = await model.User.findOne({ username: req.body.username });
+    console.log(req.file)
+    console.log(req.body)
+    const newImg = new model.Img({
+      data: fs.readFileSync(path.join('./' + req.file.filename))
+    })
+    newImg.save()
+    res.status(200).json(newImg)
+  } catch (err) {
+    console.log(err)
+    res.status(500).json(err);
+  }
+  finally {
+    // Remove the uploaded file from the server
+    fs.unlinkSync(req.file.path);
+  }
+});
 
-    if (existingUser) {
-      return res.status(400).json({ success: false, msg: 'Username đã tồn tại.' });
-    }
-
-    req.body.password = await bcrypt.hash(req.body.password, 10);
-    const newUser = new model.User(req.body);
-    const savedUser = await newUser.save();
-    res.status(200).json(savedUser);
+app.get('/getImg/:id', async (req, res) => {
+  try {
+    const img = await model.Img.findById(req.params.id)
+    res.status(200).json(img)
   } catch (err) {
     res.status(500).json({ success: false, msg: err.message });
   }
-})
-
-app.post('/user/login', async (req, res) => {
-  try {
-    const findUser = await model.User.findOne({ username: req.body.username });
-    if (findUser) {
-      const result = await bcrypt.compare(req.body.password, findUser.password);
-      res.status(200).json(result);
-    }
-    else {
-      return res.status(400).json({ success: false, msg: 'Username không tồn tại.' });
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, msg: err.message });
-  }
-})
-
-app.post('/login', async (req, res) => {
-
-})
+});
 
 app.get('/dashboard', async (req, res) => {
-  const numOfBooks = await model.Book.count()
-  console.log(numOfBooks);
+  try {
+    const numOfBooks = await model.Book.count()
+    console.log(numOfBooks);
 
-  const now = new Date(Date.now());
-  console.log(now);
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  start.setHours(0);
-  start.setMinutes(0);
-  start.setSeconds(0);
-  start.setMilliseconds(0);
-  console.log(start);
-  const numOfOrderThisWeek = await model.Order.count().where({
-    date: {
-      $gte: start,
-      $lte: now
-    }
-  });
-  console.log(numOfOrderThisWeek)
-  const startOfMonth = new Date(now);
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0);
-  startOfMonth.setMinutes(0);
-  startOfMonth.setSeconds(0);
-  startOfMonth.setMilliseconds(0);
-  console.log(startOfMonth)
+    const now = new Date(Date.now());
+    console.log(now);
+    const start = new Date(now);
+    start.setDate(start.getDate() - 7);
+    start.setHours(0);
+    start.setMinutes(0);
+    start.setSeconds(0);
+    start.setMilliseconds(0);
+    console.log(start);
+    const numOfOrderThisWeek = await model.Order.count().where({
+      date: {
+        $gte: start,
+        $lte: now
+      }
+    });
+    console.log(numOfOrderThisWeek)
+    const startOfMonth = new Date(now);
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0);
+    startOfMonth.setMinutes(0);
+    startOfMonth.setSeconds(0);
+    startOfMonth.setMilliseconds(0);
+    console.log(startOfMonth)
 
-  const numOfOrderThisMonth = await model.Order.count().where({
-    date: {
-      $gte: startOfMonth,
-      $lte: now
-    }
-  });
-  console.log(numOfOrderThisMonth);
-  const listOfBookOutOfStock = await model.Book.find({
-    stock: {
-      $lte: 5
-    }
-  })
-    .sort({ stock: 1 })
-    .limit(5);
+    const numOfOrderThisMonth = await model.Order.count().where({
+      date: {
+        $gte: startOfMonth,
+        $lte: now
+      }
+    });
+    console.log(numOfOrderThisMonth);
+    const listOfBookOutOfStock = await model.Book.find({
+      stock: {
+        $lte: 5
+      }
+    })
+      .sort({ stock: 1 })
+      .limit(5);
 
-  console.log(listOfBookOutOfStock);
-  res.status(200).json({
-    numOfBooks: numOfBooks,
-    numOfOrderThisWeek: numOfOrderThisWeek,
-    numOfOrderThisMonth: numOfOrderThisMonth,
-    listOfBookOutOfStock: listOfBookOutOfStock
-  })
+    console.log(listOfBookOutOfStock);
+    res.status(200).json({
+      numOfBooks: numOfBooks,
+      numOfOrderThisWeek: numOfOrderThisWeek,
+      numOfOrderThisMonth: numOfOrderThisMonth,
+      listOfBookOutOfStock: listOfBookOutOfStock
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, msg: err.message });
+  }
 })
 
 mongoose.connect(process.env.DB_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true })
