@@ -1,47 +1,40 @@
 const model = require('../model/model')
+const mongoose = require('mongoose')
 
 const orderController = {
     addOrder: async (req, res) => {
         try {
             // Tính tổng giá trị đơn hàng
             var total = 0;
-            for (i in req.body.listOfItems) {
-                var product;
-                if (req.body.listOfItems[i].type === "Book") {
-                    product = await model.Book.findById(req.body.listOfItems[i].product);
+            for (let i = 0; i < req.body.listOfBook.length; i++) {
+                const book = await model.Book.findById(req.body.listOfBook[i].book);
+                if (book.stock < req.body.listOfBook[i].quantity) {
+                    res.status(400).json(`Sách ${book.name} không đủ số lượng yêu cầu của order!`);
+                    return;
                 }
-                else {
-                    product = await model.Stationery.findById(req.body.listOfItems[i].product)
-                }
-                if (product.stock < req.body.listOfItems[i].quantity) {
-                    res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
-                }
-
-                total += req.body.listOfItems[i].quantity * product.price;
-                console.log(product.price)
+                total += req.body.listOfBook[i].quantity * book.price;
             }
 
-            for (i in req.body.listOfItems) {
-                if (req.body.listOfItems[i].type === "Book") {
-                    await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-                }
-                else {
-                    await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-                }
+            for (i in req.body.listOfBook) {
+                await model.Book.updateOne({ _id: req.body.listOfBook[i].book }, { $inc: { stock: - req.body.listOfBook[i].quantity } });
             }
 
             console.log(total);
             //Tạo đối tượng đơn hàng
             const order = new model.Order({
-                listOfItems: req.body.listOfItems,
+                listOfBook: req.body.listOfBook,
                 totalPrice: total
             });
+
 
             // Lưu đơn hàng vào database
             await order.save();
 
             // Trả về kết quả thành công
-            res.status(201).json(order);
+            res.status(201).json({
+                msg: "Thêm đơn hàng thành công",
+                order: order
+            });
         } catch (error) {
             // Trả về thông báo lỗi nếu có lỗi xảy ra
             res.status(500).json({ error: error.message });
@@ -51,41 +44,52 @@ const orderController = {
         try {
             const page = req.query.page || 1;
             const itemPerPage = req.query.itemPerPage || 10;
-            const minDate = req.query.minDate ? new Date(req.query.minDate) : null;
-            const maxDate = req.query.maxDate ? new Date(req.query.maxDate) : Date(Date.now());
-            console.log(minDate);
-            console.log(maxDate);
+            const minDate = req.query.minDate ? new Date(req.query.minDate) : new Date("2000-01-01");
+            const maxDate = req.query.maxDate ? new Date(req.query.maxDate) : new Date(Date.now());
+            if (req.query.maxDate){
+                maxDate.setDate(maxDate.getDate() + 1);
+            }
+            const numOfOrders = await model.Order.count()
+                .where({
+                    date: {
+                        $lte: maxDate,
+                        $gte: minDate
+                    }
+                });
+            console.log(numOfOrders)
+            const numOfPage = Math.ceil(numOfOrders / itemPerPage)
+            console.log(numOfPage)
             const listOfOrder = await model.Order.find({
                 date: {
                     $lte: maxDate,
                     $gte: minDate
                 }
-            }).sort({ date: -1 }).skip((req.query.page - 1) * req.query.itemPerPage).limit(itemPerPage);
-            res.status(200).json(listOfOrder);
+            })
+                .sort({ date: -1 })
+                .skip((page - 1) * itemPerPage)
+                .limit(itemPerPage);
+            res.status(200).json({
+                listOfOrder: listOfOrder,
+                numOfOrders: numOfOrders,
+                numOfPage: numOfPage
+            });
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
     },
     getAnOrder: async (req, res) => {
         try {
-            const orderSearch = await model.Order.findById(req.params.id).populate({
-                path: "listOfItems.product",
-                collection: (doc) => {
-                    if (doc.type === "Book") {
-                        return Book;
-                    } else if (doc.type === "Stationnery") {
-                        return Stationnery;
-                    } else {
-                        return null;
-                    }
-                },
-                populate: {
-                    path: "category",
-                    collection: "Category",
-                    select: "name"
-                }
-            });
-            res.status(200).json(orderSearch);
+            const orderSearch = await model.Order.findById(req.params.id).populate("listOfBook.book");
+            if (orderSearch) {
+                res.status(200).json({
+                    order: orderSearch
+                });
+            }
+            else {
+                res.status(400).json({
+                    msg: "Đơn hàng này không tồn tại"
+                })
+            }
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
@@ -93,68 +97,54 @@ const orderController = {
     deleteAnOrder: async (req, res) => {
         try {
             await model.Order.findByIdAndDelete(req.params.id);
-            res.status(200).json("Xóa đơn hàng thành công.")
+            res.status(200).json({
+                msg: "Xóa đơn hàng thành công."
+            })
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
     },
     updateAnOrder: async (req, res) => {
+        const session = await model.Order.startSession();
+        session.startTransaction();
         try {
-            const orderToUpdate = await model.Order.findById(req.params.id).populate({
-                path: "listOfItems.product",
-                collection: (doc) => {
-                    if (doc.type === "Book") {
-                        return Book;
-                    } else if (doc.type === "Stationnery") {
-                        return Stationnery;
-                    } else {
-                        return null;
-                    }
+            const orderToUpdate = await model.Order.findById(req.params.id).session(session);
+            if (req.body.listOfBook) {
+                for (i in orderToUpdate.listOfBook) {
+                    await model.Book.updateOne({ _id: orderToUpdate.listOfBook[i].book }, { $inc: { stock: orderToUpdate.listOfBook[i].quantity } }, { session });
                 }
-            });
-
-            // if (!orderToUpdate) res.status(400).json("Không tìm thấy order");
-            // for (let i = 0; i < orderToUpdate.listOfItems.length; i++) {
-            //     const originalItem = orderToUpdate.listOfItems[i];
-            //     const product = await originalItem.product.constructor.findById(originalItem.product);
-            //     product.stock += originalItem.quantity;
-            //     product.save();
-            // }
-            // var total = 0;
-            // for (i in req.body.listOfItems) {
-            //     var product;
-            //     if (req.body.listOfItems[i].type === "Book") {
-            //         product = await model.Book.findById(req.body.listOfItems[i].product);
-            //     }
-            //     else {
-            //         product = await model.Stationery.findById(req.body.listOfItems[i].product)
-            //     }
-            //     if (product.stock < req.body.listOfItems[i].quantity) {
-            //         res.status(400).json(`Sách ${product.name} không đủ số lượng yêu cầu của order!`);
-            //     }
-
-            //     total += req.body.listOfItems[i].quantity * product.price;
-            //     console.log(product.price)
-            // }
-
-            // for (i in req.body.listOfItems) {
-            //     if (req.body.listOfItems[i].type === "Book") {
-            //         await model.Book.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-            //     }
-            //     else {
-            //         await model.Stationery.updateOne({ _id: req.body.listOfItems[i].product }, { $inc: { stock: - req.body.listOfItems[i].quantity } });
-            //     }
-            // }
-
-            // console.log(total);
-            // //Tạo đối tượng đơn hàng
-            // orderToUpdate.listOfItems = req.body.listOfItems
-            // orderToUpdate.totalPrice = total
-            orderToUpdate.date = req.body.date
-
-            orderToUpdate.save();
-            res.status(200).json(orderToUpdate)
+                var total = 0;
+                for (i in req.body.listOfBook) {
+                    const book = await model.Book.findById(req.body.listOfBook[i].book).session(session);
+                    if (book.stock < req.body.listOfBook[i].quantity) {
+                        await session.abortTransaction();
+                        session.endSession();
+                        res.status(400).json(`Sách ${book.name} không đủ số lượng yêu cầu của order!`);
+                        return;
+                    }
+    
+                    total += req.body.listOfBook[i].quantity * book.price;
+                }
+                for (i in req.body.listOfBook) {
+                    await model.Book.updateOne({ _id: req.body.listOfBook[i].book }, { $inc: { stock: - req.body.listOfBook[i].quantity } }, { session });
+                }
+    
+                console.log(total);
+                orderToUpdate.listOfBook = req.body.listOfBook;
+                orderToUpdate.totalPrice = total
+            }
+            if (req.body.date)
+                orderToUpdate.date = new Date(req.body.date)
+            await orderToUpdate.save({ session });
+            await session.commitTransaction();
+            session.endSession();
+            res.status(200).json({
+                msg: "Cập nhật đơn hàng thành công",
+                order: orderToUpdate
+            })
         } catch (err) {
+            await session.abortTransaction();
+            session.endSession();
             res.status(500).json({ success: false, msg: err.message });
         }
     },
@@ -162,10 +152,11 @@ const orderController = {
         try {
             const modeReport = req.query.mode;
             const start = new Date(req.query.minDate);
-            const end = req.query.maxDate ? new Date(req.query.maxDate) : Date(Date.now());
-            console.log(start);
-            console.log(end);
-
+            const end = req.query.maxDate ? new Date(req.query.maxDate) : new Date(Date.now());
+            if (req.query.maxDate){
+                end.setDate(end.getDate() + 1);
+            }
+            console.log(end)
             const filter = {
                 date: { $gte: start, $lte: end }
             };
@@ -179,6 +170,11 @@ const orderController = {
                         },
                         totalIncome: { $sum: "$totalPrice" }
                     }
+                },
+                {
+                    $sort: {
+                        "_id.date": 1
+                    }
                 }
             ];
 
@@ -186,15 +182,28 @@ const orderController = {
                 aggregateQuery[1].$group._id = { $dateToString: { format: "%Y-%m", date: "$date" } };
             } else if (modeReport === "year") {
                 aggregateQuery[1].$group._id = { $dateToString: { format: "%Y", date: "$date" } };
+            } else if (modeReport === "week") {
+                aggregateQuery[1].$group._id = {
+                    week: { $isoWeek: "$date" },
+                    year: { $year: "$date" }
+                };
+                aggregateQuery[1].$group.totalIncome = { $sum: "$totalPrice" };
+                aggregateQuery[2].$sort = {
+                    "_id.year": 1,
+                    "_id.week": 1
+                }
             }
 
             const incomeReport = await model.Order.aggregate(aggregateQuery);
-
-            res.status(200).json(incomeReport); 
+            console.log(incomeReport);
+            res.status(200).json({
+                incomeReport: incomeReport
+            });
         } catch (err) {
             res.status(500).json({ success: false, msg: err.message });
         }
     }
+
 }
 
 module.exports = orderController;
